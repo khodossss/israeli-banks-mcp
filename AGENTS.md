@@ -127,7 +127,7 @@ _(interop: full — verified against superpowers@6.1.1 — re-check on suite upg
 
 - **Conventional commits** (`feat:`/`fix:`/`chore:`/`refactor:`/`docs:`/`test:`). Branches `feat/…`, `fix/…`, `chore/…`.
 - **No co-author trailer** unless the user asks.
-- **Remote**: `origin` → `github.com/khodossss/kesef.ai`. Default branch `main`.
+- **Remote**: `origin` → `github.com/khodossss/israeli-banks-mcp`. Default branch `main`.
 - **Local gate**: pre-commit hook (`.githooks/pre-commit`) runs `npm run verify`; CI enforces it too.
 - **Definition of done**: solo repo — commit to `main` (or a short-lived branch), ensure `npm run verify` is green, push; CI runs `verify` on push. No PR-review gate required (single maintainer); use a branch + self-review for anything non-trivial.
 - **Never** `--no-verify`, `--force`, `--no-gpg-sign`, or `git reset --hard` without explicit user instruction.

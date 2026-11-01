@@ -4,8 +4,8 @@
   "version": "0.2.2",
   "description": "Local, read-only connector to Israeli banks and credit cards: balances, transactions and honest spending reports.",
   "author": { "name": "khodossss", "url": "https://github.com/khodossss" },
-  "homepage": "https://github.com/khodossss/kesef.ai",
+  "homepage": "https://github.com/khodossss/israeli-banks-mcp",
   "license": "MIT",
-  "repository": "https://github.com/khodossss/kesef.ai",
+  "repository": "https://github.com/khodossss/israeli-banks-mcp",
   "keywords": ["finance", "banking", "israel", "mcp"]
 }

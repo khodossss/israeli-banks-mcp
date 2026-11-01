@@ -15,11 +15,11 @@ Tested on Windows. macOS and Linux work too; if your browser is somewhere unusua
 In a Claude Code session:
 
 ```
-/plugin marketplace add khodossss/kesef.ai
+/plugin marketplace add khodossss/israeli-banks-mcp
 /plugin install kesef@kesef-ai
 ```
 
-Or from a terminal: `claude plugin marketplace add khodossss/kesef.ai`, then
+Or from a terminal: `claude plugin marketplace add khodossss/israeli-banks-mcp`, then
 `claude plugin install kesef@kesef-ai`.
 
 Start a new session. The plugin brings the kesef MCP server (named `bank` inside the plugin) and the
@@ -32,7 +32,7 @@ Start a new session. The plugin brings the kesef MCP server (named `bank` inside
 ## Codex
 
 ```
-codex plugin marketplace add khodossss/kesef.ai
+codex plugin marketplace add khodossss/israeli-banks-mcp
 codex plugin add kesef@kesef-ai
 ```
 
@@ -90,8 +90,8 @@ To disable a provider, delete its lines from `.env` (a commented-out key is inac
 ## Manual install (without the plugin system)
 
 ```
-git clone https://github.com/khodossss/kesef.ai.git
-cd kesef.ai
+git clone https://github.com/khodossss/israeli-banks-mcp.git
+cd israeli-banks-mcp
 npm ci
 npm run setup
 ```
@@ -101,13 +101,13 @@ at its root, kesef keeps using that folder as its home (the layout before the pl
 
 Register the server with the absolute path to `src/server.mjs`:
 
-- **Claude Code:** `claude mcp add kesef --scope user -- node C:/path/to/kesef.ai/src/server.mjs`
+- **Claude Code:** `claude mcp add kesef --scope user -- node C:/path/to/israeli-banks-mcp/src/server.mjs`
 - **Codex:** add to `~/.codex/config.toml`:
 
   ```toml
   [mcp_servers.kesef]
   command = "node"
-  args = ["C:/path/to/kesef.ai/src/server.mjs"]
+  args = ["C:/path/to/israeli-banks-mcp/src/server.mjs"]
   startup_timeout_sec = 60
   tool_timeout_sec = 900
   ```

@@ -1,6 +1,6 @@
-# kesef.ai
+# kesef — Israeli banks MCP server
 
-**Private analysis of your real Israeli bank data, inside Claude Code or Codex.**
+**Private analysis of your real Israeli bank data (Hapoalim, Leumi, Isracard, Cal), inside Claude Code or Codex.**
 
 kesef pulls your balances and transactions from Israeli banks and credit cards into your
 AI agent, so you can ask for what a spreadsheet won't give you: spending by category,
@@ -30,7 +30,7 @@ You need **Node.js 22+** and **Google Chrome or Microsoft Edge**.
 **Claude Code**
 
 ```
-/plugin marketplace add khodossss/kesef.ai
+/plugin marketplace add khodossss/israeli-banks-mcp
 /plugin install kesef@kesef-ai
 ```
 
