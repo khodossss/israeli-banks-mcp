@@ -3,6 +3,7 @@
   "version": "0.2.0",
   "type": "module",
   "private": true,
+  "license": "MIT",
   "description": "User-assisted (manual login) MCP connector for Israeli banks — native, system Chrome, read-only",
   "engines": {
     "node": ">=22"
