@@ -1,0 +1,15 @@
+{
+  "name": "kesef",
+  "displayName": "kesef.ai",
+  "description": "Local, read-only connector to Israeli banks and credit cards: balances, transactions and honest spending reports.",
+  "author": { "name": "khodossss", "url": "https://github.com/khodossss" },
+  "homepage": "https://github.com/khodossss/kesef.ai",
+  "repository": "https://github.com/khodossss/kesef.ai",
+  "keywords": ["finance", "banking", "israel", "mcp"],
+  "mcpServers": {
+    "kesef": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/bin/kesef-mcp.mjs"]
+    }
+  }
+}

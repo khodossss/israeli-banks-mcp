@@ -12,7 +12,7 @@
 
 import puppeteer from 'puppeteer-core';
 import { createScraper } from 'israeli-bank-scrapers-core';
-import { getChrome, profileDir, getCredentials, MONTHS_BACK, PROVIDERS } from '../config.mjs';
+import { getChrome, profileDir, getCredentials, monthsBack as defaultMonthsBack, PROVIDERS } from '../config.mjs';
 import { extractHapoalim } from './extractors/hapoalim.mjs';
 
 function log(onProgress, msg) {
@@ -34,7 +34,6 @@ const COMMON_ARGS = [
 export async function warmup(provider, { onProgress } = {}) {
   const cfg = PROVIDERS[provider];
   if (!cfg) throw new Error(`unknown provider: ${provider}`);
-  getChrome();
   const browser = await puppeteer.launch({
     executablePath: getChrome(),
     headless: false,
@@ -46,17 +45,17 @@ export async function warmup(provider, { onProgress } = {}) {
   await page.goto(cfg.loginUrl, { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {});
   log(
     onProgress,
-    `Войди вручную в окне ${provider}: логин, пароль, SMS-код, ОБЯЗАТЕЛЬНО «доверять этому устройству». Дойди до страницы счёта и ЗАКРОЙ окно.`,
+    `Log in to ${provider} manually in the window: username, password, SMS code, and be sure to tick "trust this device". Reach the account page, then CLOSE the window.`,
   );
   await new Promise(resolve => browser.on('disconnected', resolve));
   return {
     provider,
     warmed: true,
-    note: 'Профиль прогрет. Теперь refresh должен пройти без SMS/Cloudflare, пока держится cookie доверия.',
+    note: 'Profile warmed. refresh should now go through without SMS/Cloudflare while the trust cookie lasts.',
   };
 }
 
-export async function refresh(provider, { monthsBack = MONTHS_BACK, onProgress } = {}) {
+export async function refresh(provider, { monthsBack = defaultMonthsBack(), onProgress } = {}) {
   const cfg = PROVIDERS[provider];
   if (!cfg) throw new Error(`unknown provider: ${provider}`);
   // Validate up front so a missing-cred error is a clean message, not a window flash.
@@ -80,13 +79,14 @@ async function refreshHapoalim(cfg, monthsBack, onProgress) {
     args: COMMON_ARGS,
   });
   try {
-    log(onProgress, 'открываю Hapoalim — сейчас вставлю логин/пароль');
+    log(onProgress, 'opening Hapoalim — filling in username and password');
     const page = (await browser.pages())[0] || (await browser.newPage());
     await page.goto(cfg.loginUrl, { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {});
     await autofillHapoalim(page, cfg, onProgress);
     return await extractHapoalim(page, {
       monthsBack,
-      onWait: (state, s) => log(onProgress, `жду полный вход (${state}); ~${s}s — введи SMS-код в окне`),
+      onWait: (state, s) =>
+        log(onProgress, `waiting for login to complete (${state}); ~${s}s left — type the SMS code in the window`),
     });
   } finally {
     await browser.close();
@@ -101,28 +101,28 @@ async function autofillHapoalim(page, cfg, onProgress) {
     await page.click(user, { clickCount: 3 }).catch(() => {});
     await page.type(user, creds.userCode, { delay: 25 });
     await page.type(pass, creds.password, { delay: 25 });
-    log(onProgress, 'логин и пароль вставлены, жму «войти» — введи только SMS-код');
+    log(onProgress, 'username and password filled in, clicking "log in" — now type only the SMS code');
     await page.click(submit);
   } catch (e) {
-    log(onProgress, `автозаполнение не удалось (${e.message}); войди вручную в окне`);
+    log(onProgress, `autofill failed (${e.message}); log in manually in the window`);
   }
 }
 
 // Mode B: the library launches and drives its OWN browser (visible), with a
 // persistent profile so a warmed "trust this device" / cf_clearance cookie lets
 // later runs go through silently. Robust inside the MCP stdio server.
-const PROGRESS_RU = {
-  INITIALIZING: 'запускаю браузер…',
-  START_SCRAPING: 'начинаю сбор…',
-  LOGGING_IN: 'вхожу автоматически (логин/пароль из .env)…',
-  END_SCRAPING: 'данные собраны',
-  TERMINATING: 'закрываю окно…',
+const PROGRESS_TEXT = {
+  INITIALIZING: 'starting the browser…',
+  START_SCRAPING: 'starting extraction…',
+  LOGGING_IN: 'logging in automatically (credentials from .env)…',
+  END_SCRAPING: 'data collected',
+  TERMINATING: 'closing the window…',
 };
 
 async function libScrape(cfg, provider, creds, monthsBack, onProgress) {
   log(
     onProgress,
-    `открываю ${provider} — вход автоматический; сбор занимает ~1–2 минуты, просто подожди (при Cloudflare пройди проверку в окне)`,
+    `opening ${provider} — login is automatic; extraction takes ~1–2 minutes, just wait (pass the Cloudflare check in the window if it appears)`,
   );
   const startDate = new Date();
   startDate.setMonth(startDate.getMonth() - monthsBack);
@@ -146,7 +146,7 @@ async function libScrape(cfg, provider, creds, monthsBack, onProgress) {
   // Surface the library's own progress so a slow run doesn't look stuck / like it
   // is waiting for the user to type (it logs in on its own).
   scraper.onProgress((companyId, payload) =>
-    log(onProgress, `${companyId}: ${PROGRESS_RU[payload?.type] || payload?.type || ''}`),
+    log(onProgress, `${companyId}: ${PROGRESS_TEXT[payload?.type] || payload?.type || ''}`),
   );
   const result = await scraper.scrape(creds);
   if (!result.success) throw new Error(`${provider} scrape failed: ${result.errorType} ${result.errorMessage || ''}`);

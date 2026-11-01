@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { reconcileDataset } from '../src/store.mjs';
+import { reconcileDataset, flagCardRepayments } from '../src/store.mjs';
 
 const NOW = '2026-07-01T00:00:00Z';
 
@@ -74,4 +74,17 @@ test('card repayments match the descriptions Leumi actually writes', () => {
     now: NOW,
   });
   assert.equal(r.ledger.cardRepaymentsDebited, -400); // all four card debits, nothing else
+});
+
+test('get_transactions flags only bank card-bill debits as card_repayment', () => {
+  const rows = flagCardRepayments([
+    { provider: 'leumi', charged_amount: -100, description: 'ל.מאסטרקרד(כא)' },
+    { provider: 'leumi', charged_amount: -70, description: 'כרטיס דביט' },
+    { provider: 'leumi', charged_amount: 100, description: 'החזר ישראכרט' }, // a refund, not a debit
+    { provider: 'isracard', charged_amount: -50, description: 'MAX STOCK' }, // card purchase, not a bank debit
+  ]);
+  assert.deepEqual(
+    rows.map(r => r.card_repayment),
+    [true, false, false, false],
+  );
 });

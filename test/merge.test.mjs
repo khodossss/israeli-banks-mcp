@@ -5,7 +5,7 @@ import { mergeSnapshots, householdReconcile, householdAccounts } from '../src/ho
 const NOW = '2026-07-01T00:00:00Z';
 
 const dima = {
-  member: { id: 'm_dima', info: 'Дима' },
+  member: { id: 'm_dima', info: 'Dima' },
   exported_at: '2026-06-30T10:00:00Z',
   providers: [
     { provider: 'leumi', kind: 'bank' },
@@ -16,7 +16,7 @@ const dima = {
   refreshes: [],
 };
 const wife = {
-  member: { id: 'm_wife', info: 'Жена' },
+  member: { id: 'm_wife', info: 'Spouse' },
   exported_at: '2026-06-30T09:00:00Z',
   providers: [{ provider: 'leumi', kind: 'bank' }], // SAME bank as Dima — must not collide
   accounts: [{ provider: 'leumi', account_number: '1', balance: 200 }],

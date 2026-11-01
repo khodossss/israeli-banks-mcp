@@ -1,20 +1,7 @@
-// Household identity + config, read from / written to the repo-root .env.
-// Uses a RAW env parse (no un-commenting) so a commented key is inactive — unlike
-// config.loadEnv, which un-comments for the Docker toggle.
+// Household identity + config, read from / written to the .env in KESEF_HOME.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
-import { envPath, DEFAULT_RELAY_URL } from '../../config.mjs';
-
-export function readEnvRaw() {
-  const path = envPath();
-  const out = {};
-  if (!existsSync(path)) return out;
-  for (const line of readFileSync(path, 'utf8').split(/\r?\n/)) {
-    const m = line.match(/^([A-Z0-9_]+)=(.*)$/); // no leading '#': commented = inactive
-    if (m && m[2] !== '') out[m[1]] = m[2];
-  }
-  return out;
-}
+import { envPath, loadEnv, DEFAULT_RELAY_URL } from '../../config.mjs';
 
 export function writeEnvKeys(patch) {
   const path = envPath();
@@ -37,7 +24,7 @@ export function newMemberId() {
 }
 
 export function loadHousehold() {
-  const env = readEnvRaw();
+  const env = loadEnv();
   if (!env.HOUSEHOLD_STORAGE) return null;
   return {
     storage: env.HOUSEHOLD_STORAGE,
@@ -49,5 +36,5 @@ export function loadHousehold() {
 }
 
 export function displayName(member, index) {
-  return member && member.info ? member.info : `Юзер ${index + 1}`;
+  return member && member.info ? member.info : `Member ${index + 1}`;
 }

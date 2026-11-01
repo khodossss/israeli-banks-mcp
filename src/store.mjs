@@ -140,7 +140,7 @@ export function status() {
 const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
 
 // Balance reconciliation. The account balance moves via the lump card REPAYMENTS,
-// not the itemized purchases — so "spending" (Isracard itemized) is a different
+// not the itemized purchases — so card "spending" (itemized purchases) is a different
 // number from the balance change, and must never be summed with the repayments.
 // The current balance is also "inflated": recent card purchases aren't billed to
 // the account yet. This returns concrete figures for all of that.
@@ -152,6 +152,16 @@ const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
 // so the common word "כאלה" ("such") can't be read as a card repayment.
 const CARD_REPAY_RE =
   /מא?סטרקרד|כרטיסי אשראי|ישראכרט|לאומי קארד|ויזה|מקס|כאל(?![א-ת])|max|visa|isracard|amex|mastercard|cal-online/i;
+
+// A lump card-bill debit on a bank account — the one rule both reconcile and the
+// get_transactions `card_repayment` flag use, so spending is never double-counted.
+export function isCardRepayment(t, banks = BANK_PROVIDERS) {
+  return banks.includes(t.provider) && t.charged_amount < 0 && CARD_REPAY_RE.test(t.description || '');
+}
+
+export function flagCardRepayments(rows) {
+  return rows.map(t => ({ ...t, card_repayment: isCardRepayment(t) }));
+}
 
 // Pure reconciliation over a supplied dataset (no I/O) — reused for own (local DB)
 // and per-member (snapshot) scopes. banks/cards are the provider-name sets.
@@ -174,11 +184,7 @@ export function reconcileDataset({ accounts, transactions, banks, cards, from, t
     );
     const bankTx = inPeriod.filter(t => bankSet.has(t.provider));
     const net = r2(bankTx.reduce((s, t) => s + (t.charged_amount || 0), 0));
-    const repay = r2(
-      bankTx
-        .filter(t => t.charged_amount < 0 && CARD_REPAY_RE.test(t.description || ''))
-        .reduce((s, t) => s + t.charged_amount, 0),
-    );
+    const repay = r2(bankTx.filter(t => isCardRepayment(t, banks)).reduce((s, t) => s + t.charged_amount, 0));
     const consumption = r2(
       inPeriod.filter(t => cardSet.has(t.provider) && t.charged_amount < 0).reduce((s, t) => s + t.charged_amount, 0),
     );

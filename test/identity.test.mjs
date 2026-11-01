@@ -2,10 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { displayName, newMemberId } from '../src/household/identity.mjs';
 
-test('displayName falls back to Юзер N when info is empty', () => {
-  assert.equal(displayName({ id: 'm_1', info: 'Дима' }, 0), 'Дима');
-  assert.equal(displayName({ id: 'm_2', info: '' }, 1), 'Юзер 2');
-  assert.equal(displayName({ id: 'm_3' }, 2), 'Юзер 3');
+test('displayName falls back to Member N when info is empty', () => {
+  assert.equal(displayName({ id: 'm_1', info: 'Dima' }, 0), 'Dima');
+  assert.equal(displayName({ id: 'm_2', info: '' }, 1), 'Member 2');
+  assert.equal(displayName({ id: 'm_3' }, 2), 'Member 3');
 });
 
 test('member ids are unique and prefixed', () => {

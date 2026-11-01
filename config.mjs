@@ -1,13 +1,55 @@
 // Central config for the user-assisted (manual-login) bank connector.
 // Everything is local: system Chrome, per-provider persistent browser profiles,
-// credentials read from the sibling ../.env that the user already filled.
+// credentials in the .env inside KESEF_HOME.
 
 import { CompanyTypes } from 'israeli-bank-scrapers-core';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
+import { homedir } from 'node:os';
 import { readFileSync, existsSync, mkdirSync } from 'node:fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Where the user's state lives: .env (credentials), data/ (SQLite), profiles/
+// (browser sessions). An explicit KESEF_HOME wins; a checkout that already keeps
+// .env at its root (dev / pre-plugin installs) stays where it is; otherwise
+// ~/.kesef — never the plugin install dir, which a plugin update replaces.
+export const KESEF_HOME = process.env.KESEF_HOME
+  ? resolve(process.env.KESEF_HOME)
+  : existsSync(join(__dirname, '.env'))
+    ? __dirname
+    : join(homedir(), '.kesef');
+
+// Placeholder values shipped in .env.example — present, but not real credentials.
+const PLACEHOLDER = /^(your_|last_6_digits)/i;
+
+// Parse .env: KEY=value lines only. A commented-out key is inactive, and empty or
+// placeholder values count as absent.
+export function loadEnv() {
+  const path = envPath();
+  const out = {};
+  if (!existsSync(path)) return out;
+  for (const line of readFileSync(path, 'utf8').split(/\r?\n/)) {
+    const m = line.trim().match(/^([A-Z0-9_]+)=(.*)$/);
+    if (m && m[2] !== '' && !PLACEHOLDER.test(m[2])) out[m[1]] = m[2];
+  }
+  return out;
+}
+
+export function envPath() {
+  return join(KESEF_HOME, '.env');
+}
+
+// A setting from the real environment first (e.g. an MCP registration's env
+// block), then .env, then the default. Read per call, so .env edits apply
+// without restarting the server.
+export function setting(key, fallback) {
+  return process.env[key] || loadEnv()[key] || fallback;
+}
+
+export function monthsBack() {
+  return parseInt(setting('SCRAPE_MONTHS_BACK', '12'), 10) || 12;
+}
 
 // System Chrome/Edge (no bundled Chromium download). Cross-platform.
 // Override with CHROME_PATH in .env if installed somewhere unusual.
@@ -34,7 +76,7 @@ const CHROME_CANDIDATES = [
 // Lazy — resolved only when actually launching a browser, so a missing Chrome
 // doesn't crash the whole MCP server at import (read-only tools keep working).
 export function getChrome() {
-  const override = process.env.CHROME_PATH;
+  const override = setting('CHROME_PATH');
   if (override && existsSync(override)) return override;
   const found = CHROME_CANDIDATES.find(p => existsSync(p));
   if (!found) {
@@ -45,8 +87,8 @@ export function getChrome() {
   return found;
 }
 
-export const PROFILES_DIR = join(__dirname, 'profiles');
-export const DATA_DIR = join(__dirname, 'data');
+export const PROFILES_DIR = join(KESEF_HOME, 'profiles');
+export const DATA_DIR = join(KESEF_HOME, 'data');
 for (const d of [PROFILES_DIR, DATA_DIR]) if (!existsSync(d)) mkdirSync(d, { recursive: true });
 
 export function profileDir(provider) {
@@ -71,7 +113,7 @@ export const PROVIDERS = {
     // login; the human only enters the SMS OTP (step-up) in the window. Data is
     // then read from the live authenticated session (2FA still can't be automated).
     loginMode: 'autofill-then-otp',
-    humanStep: 'ввести только SMS-код (OTP) в окне',
+    humanStep: 'type only the SMS code (OTP) in the browser window',
     usesStoredCredentials: true,
     login: { user: '#userCode', pass: '#password', submit: '.login-btn' },
     loginUrl: 'https://login.bankhapoalim.co.il/cgi-bin/poalwwwc?reqName=getLogonPage',
@@ -92,7 +134,7 @@ export const PROVIDERS = {
     // automatically by the library. The visible browser lets the human step in only
     // if a rare challenge/interstitial appears. Extraction is the library's too.
     loginMode: 'auto-visible',
-    humanStep: 'обычно ничего — библиотека логинится сама; при челлендже пройти в окне',
+    humanStep: 'usually nothing — the library logs in by itself; clear a challenge in the window if one appears',
     usesStoredCredentials: true,
     loginUrl: 'https://www.leumi.co.il/he',
     credentials: env => ({ username: env.LEUMI_USERNAME, password: env.LEUMI_PASSWORD }),
@@ -105,7 +147,7 @@ export const PROVIDERS = {
     // with the stored credentials (id + card6 + password; NO SMS). The cf_clearance
     // cookie persists, so refreshes soon after may need zero human interaction.
     loginMode: 'cloudflare-then-auto',
-    humanStep: 'пройти проверку Cloudflare в окне (часто автоматически)',
+    humanStep: 'pass the Cloudflare check in the window (often automatic)',
     usesStoredCredentials: true,
     loginUrl: 'https://digital.isracard.co.il/personalarea/Login',
     detectLoggedIn: async page => {
@@ -126,34 +168,12 @@ export const PROVIDERS = {
     // captcha step); the visible window only lets the human step in if the site
     // throws a rare challenge or a forced password change.
     loginMode: 'auto-visible',
-    humanStep: 'обычно ничего — библиотека логинится сама; при челлендже пройти в окне',
+    humanStep: 'usually nothing — the library logs in by itself; clear a challenge in the window if one appears',
     usesStoredCredentials: true,
     loginUrl: 'https://www.cal-online.co.il/',
     credentials: env => ({ username: env.CAL_USERNAME, password: env.CAL_PASSWORD }),
   },
 };
-
-// Read ../.env, stripping a leading "# " so commented-out lines are still usable
-// here (the Docker MCP toggles them; this native tool wants them regardless).
-export function loadEnv() {
-  // Prefer a .env inside live-mcp/ (portable), fall back to ../.env (original layout).
-  const envPath = [join(__dirname, '.env'), resolve(__dirname, '..', '.env')].find(existsSync);
-  const out = {};
-  if (!envPath) return out;
-  for (let line of readFileSync(envPath, 'utf8').split(/\r?\n/)) {
-    line = line.trim().replace(/^#\s*/, '');
-    const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
-    if (m && m[2] !== '') out[m[1]] = m[2];
-  }
-  return out;
-}
-
-// Absolute path of the active .env (the existing one, else the primary candidate).
-// Exported so the household layer can WRITE keys (family create/join) without
-// re-deriving the path.
-export function envPath() {
-  return [join(__dirname, '.env'), resolve(__dirname, '..', '.env')].find(existsSync) || join(__dirname, '.env');
-}
 
 // Relay endpoint (relay storage mode). Overridable via RELAY_URL in .env.
 // Replace the host with your deployed Cloudflare Worker (see relay/README.md).
@@ -188,5 +208,3 @@ export const BANK_PROVIDERS = Object.entries(PROVIDERS)
 export const CARD_PROVIDERS = Object.entries(PROVIDERS)
   .filter(([, p]) => p.kind === 'card')
   .map(([k]) => k);
-
-export const MONTHS_BACK = parseInt(process.env.SCRAPE_MONTHS_BACK || '12', 10);

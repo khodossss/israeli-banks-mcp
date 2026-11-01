@@ -6,8 +6,8 @@ import { parseToken, newHouseholdId, newSecret, formatToken } from './token.mjs'
 import { deriveKey, deriveVerifier, seal, open } from './crypto.mjs';
 import { makeStore, createRoom } from './stores.mjs';
 import { mergeSnapshots, householdAccounts, householdTransactions, householdReconcile } from './merge.mjs';
-import { loadHousehold, writeEnvKeys, newMemberId, displayName, readEnvRaw } from './identity.mjs';
-import { DEFAULT_RELAY_URL } from '../../config.mjs';
+import { loadHousehold, writeEnvKeys, newMemberId, displayName } from './identity.mjs';
+import { setting, DEFAULT_RELAY_URL } from '../../config.mjs';
 
 // --- relay key material from a cfg that carries a token ---
 function relayKeys(cfg) {
@@ -67,7 +67,7 @@ export async function familyCreate({ mode = 'relay', info = '', dir = null } = {
   if (mode === 'relay') {
     const token = formatToken({ householdId: newHouseholdId(), secret: newSecret() });
     const { householdId, verifier } = relayKeys({ token });
-    const relayUrl = readEnvRaw().RELAY_URL || DEFAULT_RELAY_URL;
+    const relayUrl = setting('RELAY_URL', DEFAULT_RELAY_URL);
     await createRoom({ storage: 'relay', relayUrl, householdId, verifier });
     writeEnvKeys({
       HOUSEHOLD_STORAGE: 'relay',
@@ -94,7 +94,7 @@ export async function familyJoin({ token = null, dir = null, info = '' } = {}) {
   let cfg;
   if (token) {
     parseToken(token); // validate format
-    cfg = { storage: 'relay', token, relayUrl: readEnvRaw().RELAY_URL || DEFAULT_RELAY_URL, member: { id, info } };
+    cfg = { storage: 'relay', token, relayUrl: setting('RELAY_URL', DEFAULT_RELAY_URL), member: { id, info } };
   } else if (dir) {
     cfg = { storage: 'local', dir, member: { id, info } };
   } else {

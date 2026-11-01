@@ -1,0 +1,11 @@
+{
+  "name": "kesef-ai",
+  "owner": { "name": "khodossss" },
+  "plugins": [
+    {
+      "name": "kesef",
+      "source": "./",
+      "description": "Local, read-only connector to Israeli banks and credit cards: balances, transactions and honest spending reports."
+    }
+  ]
+}

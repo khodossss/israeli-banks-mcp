@@ -69,7 +69,7 @@ async function getAccounts(page, { tries = 160, delayMs = 3000, onWait } = {}) {
       last = info;
     }
     if (onWait && i % 5 === 0) {
-      const state = last?.state || (hasApp ? 'портал грузится' : 'жду страницу банка');
+      const state = last?.state || (hasApp ? 'portal loading' : 'waiting for the bank page');
       onWait(state, Math.round(((tries - i) * delayMs) / 1000));
     }
     await new Promise(r => setTimeout(r, delayMs));
