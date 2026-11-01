@@ -90,6 +90,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
         const onProgress = progressReporter(`refresh:${provider}`, request, extra);
         const result = await refresh(provider, { monthsBack: args.monthsBack, onProgress });
         const saved = store.save(result, new Date().toISOString());
+        // The data is saved: from here on nothing may turn this refresh into an
+        // error, or the user repeats the login (and the SMS) for nothing.
         let familySynced = false;
         let household = null;
         try {
@@ -99,14 +101,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
             household = await familySummary();
           }
         } catch (e) {
-          console.error(`[refresh:${provider}] family sync skipped: ${e.message}`);
+          console.error(`[refresh:${provider}] family sync/summary skipped: ${e.message}`);
+        }
+        let summary;
+        try {
+          summary = store.refreshSummary();
+        } catch (e) {
+          summary = { error: `summary unavailable: ${e.message}` };
         }
         return text({
           ok: true,
           provider,
           ...saved,
           familySynced,
-          summary: store.refreshSummary(),
+          summary,
           ...(household && { household }),
           note: household
             ? 'Show `summary` (your accounts) and `household` (a row per member plus the family total) to the user now as short tables; flag any member whose lastRefresh is over a week old. Then offer the finance-report skill for the full breakdown.'
