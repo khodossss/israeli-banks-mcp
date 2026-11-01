@@ -5,6 +5,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { DATA_DIR, BANK_PROVIDERS, CARD_PROVIDERS } from '../config.mjs';
+import { dayRange, inRange, israelToday } from './dates.mjs';
 
 const db = new DatabaseSync(join(DATA_DIR, 'bank.db'));
 
@@ -116,13 +117,14 @@ export function getTransactions({ provider, from, to, search, limit = 500 } = {}
     clauses.push('provider = ?');
     args.push(provider);
   }
-  if (from) {
+  const { lo, hi } = dayRange(from, to);
+  if (lo) {
     clauses.push('date >= ?');
-    args.push(from);
+    args.push(lo);
   }
-  if (to) {
-    clauses.push('date <= ?');
-    args.push(to);
+  if (hi) {
+    clauses.push('date < ?');
+    args.push(hi);
   }
   if (search) {
     clauses.push('(description LIKE ? OR memo LIKE ?)');
@@ -179,9 +181,8 @@ export function reconcileDataset({ accounts, transactions, banks, cards, from, t
 
   let ledger = null;
   if (from || to) {
-    const inPeriod = transactions.filter(
-      t => (!from || (t.date && t.date >= from)) && (!to || (t.date && t.date <= to)),
-    );
+    const range = dayRange(from, to);
+    const inPeriod = transactions.filter(t => inRange(t.date, range));
     const bankTx = inPeriod.filter(t => bankSet.has(t.provider));
     const net = r2(bankTx.reduce((s, t) => s + (t.charged_amount || 0), 0));
     const repay = r2(bankTx.filter(t => isCardRepayment(t, banks)).reduce((s, t) => s + t.charged_amount, 0));
@@ -220,6 +221,40 @@ export function reconcile({ from, to } = {}) {
     from,
     to,
   });
+}
+
+// Headline figures returned right after a refresh, so the agent can show the
+// picture at once: balance, upcoming card bill, what is really available, and
+// card spending / bank credits for this month so far and the previous full
+// month (early in a month the current one is still empty) — reconcile's rules.
+export function refreshSummary(now = new Date()) {
+  const today = israelToday(now);
+  const thisMonth = `${today.slice(0, 7)}-01`;
+  const prev = new Date(`${thisMonth}T00:00:00Z`);
+  prev.setUTCMonth(prev.getUTCMonth() - 1);
+  const lastMonth = prev.toISOString().slice(0, 10);
+  const lastDay = new Date(new Date(`${thisMonth}T00:00:00Z`) - 864e5).toISOString().slice(0, 10);
+  const period = (from, to) => {
+    const { ledger } = reconcile({ from, to });
+    const credits = getTransactions({ from, to, limit: 1000000 })
+      .filter(t => BANK_PROVIDERS.includes(t.provider) && t.charged_amount > 0)
+      .reduce((s, t) => s + t.charged_amount, 0);
+    return {
+      from,
+      to,
+      cardSpending: ledger.cardConsumption,
+      bankCredits: r2(credits),
+      cardRepaymentsDebited: ledger.cardRepaymentsDebited,
+    };
+  };
+  const r = reconcile();
+  return {
+    currentBalance: r.currentBalance,
+    pendingCardBill: r.pendingCardBill,
+    availableBalance: r.availableBalance,
+    thisMonth: period(thisMonth, today),
+    lastMonth: period(lastMonth, lastDay),
+  };
 }
 
 // Build a portable, credential-free snapshot of THIS machine's data.

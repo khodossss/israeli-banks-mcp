@@ -2,6 +2,7 @@
 // (card repayments match bank↔card only inside one member) and the household
 // figures are the sum — never a cross-member match.
 import { reconcileDataset } from '../store.mjs';
+import { dayRange, inRange } from '../dates.mjs';
 
 const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -23,8 +24,8 @@ export function householdAccounts(snapshots) {
 
 export function householdTransactions(snapshots, { from, to, search, limit = 500 } = {}) {
   let rows = mergeSnapshots(snapshots).flatMap(s => s.transactions.map(t => ({ member: s.member, ...t })));
-  if (from) rows = rows.filter(t => t.date && t.date >= from);
-  if (to) rows = rows.filter(t => t.date && t.date <= to);
+  const range = dayRange(from, to);
+  rows = rows.filter(t => inRange(t.date, range));
   if (search) {
     const q = search.toLowerCase();
     rows = rows.filter(t => `${t.description || ''} ${t.memo || ''}`.toLowerCase().includes(q));
