@@ -10,7 +10,7 @@ Local, read-only MCP connector that pulls Israeli-bank balances and transactions
 - **Agent karta**: `#6 «🤖 Хранитель коннектора»` — adhikarin, steward of the focus holon. Your inbox: `nks_orient(realm="r149", focus="6")` at session start (self-locate fallback: `nks_admin(action="my_kartas")`).
 - **Owner karta**: `#7 «👤 Владелец kesef.ai»` (svatantra 主) — out-of-mandate questions (which banks to support, what counts as an honest reconciliation, privacy trade-offs) go here as `posed_to` vimarshas.
 - **Stack**: Node ≥22 plain ES modules (`.mjs`, no TypeScript, no build step); `@modelcontextprotocol/sdk` (stdio), `puppeteer-core` (system Chrome), `israeli-bank-scrapers-core`, built-in `node:sqlite`.
-- **Production statement**: ships to one user (the owner) on their own Windows machine as a user-scope MCP server (`kesef`). Everything is local: credentials in a git-ignored root `.env`, browser sessions in `profiles/`, data in a `data/bank.db` SQLite file. Cost of breakage: a wrong balance/spending figure in a personal finance report, or — the one unacceptable failure — a credential leak. Strictly read-only: no payments, no transfers, ever.
+- **Production statement**: ships as a plugin for Claude Code and Codex (this repo is its own marketplace, `kesef@kesef-ai`); the owner and family members run it on their own machines. Everything is local: credentials in `.env`, browser sessions in `profiles/`, data in `data/bank.db` — all inside `KESEF_HOME` (default `~/.kesef`, outside the plugin install dir). Cost of breakage: a wrong balance/spending figure in a personal finance report, or — the one unacceptable failure — a credential leak. Strictly read-only: no payments, no transfers, ever.
 - **Family mode** (`src/household/`, optional relay storage) adds one narrow network egress: E2E-sealed, credential-free snapshots to a separately-deployed relay (`relay/`) when `HOUSEHOLD_STORAGE=relay`. Solo use stays fully local — this egress only exists once a household is created/joined.
 
 ## Persistence rules
@@ -60,50 +60,56 @@ _(interop: full — verified against superpowers@6.1.1 — re-check on suite upg
 
 ## Commands
 
-| Task                      | Command                                       |
-| ------------------------- | --------------------------------------------- |
-| Run MCP server            | `npm start` (`node src/server.mjs`)           |
-| Fill `.env` via a form    | `npm run setup` (`node tools/setup-form.mjs`) |
-| Syntax check (all `.mjs`) | `npm run check`                               |
-| Lint (zero warnings)      | `npm run lint`                                |
-| Format / check format     | `npm run format` / `npm run format:check`     |
-| Unit tests                | `npm test` (`node --test test/**/*.test.mjs`) |
-| Full gate (CI parity)     | `npm run verify`                              |
+| Task                      | Command                                                                  |
+| ------------------------- | ------------------------------------------------------------------------ |
+| Run MCP server            | `npm start` (`node src/server.mjs`)                                      |
+| Fill `.env` via a form    | `npm run setup` (`node tools/setup-form.mjs`; also the `setup` MCP tool) |
+| Validate plugin manifest  | `claude plugin validate .`                                               |
+| Syntax check (all `.mjs`) | `npm run check`                                                          |
+| Lint (zero warnings)      | `npm run lint`                                                           |
+| Format / check format     | `npm run format` / `npm run format:check`                                |
+| Unit tests                | `npm test` (`node --test test/**/*.test.mjs`)                            |
+| Full gate (CI parity)     | `npm run verify`                                                         |
 
 `verify` now runs check → lint → format:check → test. Pre-commit hook runs `verify` (enable once: `git config core.hooksPath .githooks`; the `prepare` script does this on `npm install`). CI (`.github/workflows/ci.yml`) runs `verify` on push/PR.
 
 ## Project structure
 
-- `src/server.mjs` — MCP stdio server; defines tools, dispatches to store/refresh.
+- `src/server.mjs` — MCP stdio server; dispatches tool calls to store/refresh/household, reports `refresh`/`warmup` progress as MCP `notifications/progress`.
+- `src/tool-defs.mjs` — tool names, descriptions and input schemas.
+- `src/setup.mjs` — the `setup` tool: spawns the setup form and returns its link.
+- `bin/kesef-mcp.mjs` — plugin entry point: installs runtime deps (`npm ci --omit=dev`) when `node_modules` is missing, then imports the server.
 - `src/refresh.mjs` — refresh + warmup dispatcher; Hapoalim (our browser + autofill) vs. library-login providers.
 - `src/extractors/hapoalim.mjs` — Hapoalim extraction from the live authenticated session (bank internal API).
 - `src/fetch-helpers.mjs` — in-page `fetch` helpers (run inside the authenticated browser page).
 - `src/store.mjs` — `node:sqlite` store: upsert/dedup, queries, `reconcile`.
 - `src/household/` — family-mode core (pure logic + I/O, no browser): `token.mjs` (`kesef1.<id>.<secret>` format), `crypto.mjs` (HKDF key derivation, AES-GCM seal/open, verifier), `identity.mjs` (raw `.env` read/write, member id/display name), `stores.mjs` (`local`/`relay` storage backends), `merge.mjs` (multi-member snapshot merge + `householdReconcile`), `index.mjs` (`familyCreate/Join/Leave/Status/Sync`, `householdView/Txns` — the `family_*` MCP tool handlers in `server.mjs` dispatch here).
 - `relay/` — **separately-deployed** Cloudflare Worker (`worker.mjs` + `wrangler.toml`), not run by this repo's server; see `relay/README.md` for deploy steps. Zero-knowledge: stores only a verifier and sealed member blobs, never plaintext.
-- `config.mjs` — Chrome discovery, provider table (login modes), `.env` loading, provider discovery, `DEFAULT_RELAY_URL`.
+- `config.mjs` — `KESEF_HOME` resolution, the one `.env` parser (`loadEnv`) and `setting()` (process env → `.env` → default), Chrome discovery, provider table (login modes), provider discovery, `DEFAULT_RELAY_URL`.
 - `tools/check-syntax.mjs` — cross-platform `node --check` over all sources (`npm run check`).
-- `tools/setup-form.mjs` — one-shot local form for writing the root `.env` (`npm run setup`): binds 127.0.0.1 on a random port behind a per-run token, serves one page with no external assets, writes `.env` at mode 600, then exits. Never sends saved secrets back to the page. It also writes `SCRAPE_MONTHS_BACK` into the `kesef` entry of `~/.claude.json` (see the `SCRAPE_MONTHS_BACK` gotcha below) — atomically, via temp file + rename, keeping a `.bak`.
-- `commands/finance-report.md` — the `/finance-report` slash-command flow.
+- `tools/setup-form.mjs` — one-shot local form for writing `.env` in `KESEF_HOME` (`npm run setup` or the `setup` tool): binds 127.0.0.1 on a random port behind a per-run token, writes `.env` at mode 600 (credentials + `SCRAPE_MONTHS_BACK`, other keys carried over verbatim), then exits. Never sends saved secrets back to the page. `tools/setup-page.mjs` holds the provider fields and the HTML.
+- `skills/finance-report/SKILL.md` — the finance-report flow, shared by both agents (`/kesef:finance-report` in Claude Code, `$finance-report` in Codex).
+- Plugin manifests — `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` (Claude Code; Codex also reads the marketplace file), root `plugin.json` + `mcp.json` (Codex portable format, `${PLUGIN_ROOT}`).
 - `test/` — `node:test` unit tests for the household pure logic (`token`, `crypto`, `identity`, `merge`, `reconcile-dataset`, `stores`, `family-ops`) plus a server smoke test; run via `npm test`.
-- `data/`, `profiles/`, `.env` — **git-ignored** (SQLite data, browser sessions w/ auth cookies, credentials — now including the family token).
+- `data/`, `profiles/`, `.env` — **git-ignored** (SQLite data, browser sessions w/ auth cookies, credentials incl. the family token); at the repo root only in a dev/legacy checkout (see the `KESEF_HOME` gotcha).
 - **Path alias**: `@bank-assistant/*` — none; there are no aliases and no `tsconfig`.
 
 ## Code conventions
 
 - Plain ES modules only (`.mjs`, `"type":"module"`). No TypeScript, no transpile, no bundler.
 - Prettier: single quotes, `printWidth` 120, trailing commas, `arrowParens: avoid`. ESLint flat config (`eslint.config.mjs`) is authoritative; it declares both Node and browser globals (the extractors' `page.evaluate` callbacks run in the browser).
-- **Test discipline**: unit tests exist for the pure household logic (`test/*.test.mjs`, `node:test`, run via `npm test`) — token format, crypto seal/open, `store.reconcileDataset`, `merge.householdReconcile`, storage backends. The bank-side load-bearing paths (login/extraction) are still browser-interactive and hard to unit-test; for those, gate = lint + format + `node --check` + a manual DB smoke (`import ./src/store.mjs` and read `status()`/`reconcile()`). Add unit tests for new pure logic as it grows; leave browser flows to manual verification.
+- **Test discipline**: unit tests exist for the pure logic (`test/*.test.mjs`, `node:test`, run via `npm test`) — `.env` parsing and settings precedence, token format, crypto seal/open, `store.reconcileDataset` and the `card_repayment` flag, `merge.householdReconcile`, storage backends. The bank-side load-bearing paths (login/extraction) are still browser-interactive and hard to unit-test; for those, gate = lint + format + `node --check` + a manual DB smoke (`import ./src/store.mjs` and read `status()`/`reconcile()`). Add unit tests for new pure logic as it grows; leave browser flows to manual verification.
 - **Gotchas**:
-  - **MCP stdio purity**: stdout carries ONLY JSON-RPC. `server.mjs` redirects `console.log/info/debug/warn` to stderr — never `console.log` to stdout from server-path code, or the protocol stream corrupts and the connection drops ("Connection closed"). Progress goes to stderr via `onProgress`/`console.error`.
+  - **MCP stdio purity**: stdout carries ONLY JSON-RPC. `server.mjs` redirects `console.log/info/debug/warn` to stderr — never `console.log` to stdout from server-path code, or the protocol stream corrupts and the connection drops ("Connection closed"). Progress goes to stderr and, when the client sent a `progressToken`, out as `notifications/progress`. Child processes (`npm ci` in `bin/kesef-mcp.mjs`, the setup form in `src/setup.mjs`) must route their stdout to stderr too.
   - **`refresh`/`warmup` are interactive and cannot run headless**: they open a real visible Chrome; the human enters the Hapoalim SMS OTP or clears Isracard's Cloudflare. So any scheduling is "remind the user to refresh", never an autonomous cron. Extraction reads from the live session; a closed window aborts.
-  - **Reconciliation dedup (correctness-critical)**: the account balance moves via **lump card repayments** (bank debits matching `CARD_REPAY_RE` in `store.mjs`), NOT the itemized card purchases. Spending (Isracard itemized) and balance change are _different numbers_ — **never sum them**. `store.reconcile` returns the concrete figures; use it, don't hand-roll. This is the standing double-count risk (vimarsha `#4` in `r149`).
+  - **Reconciliation dedup (correctness-critical)**: the account balance moves via **lump card repayments** (bank debits matching `CARD_REPAY_RE` in `store.mjs`), NOT the itemized card purchases. Card spending (itemized purchases) and balance change are _different numbers_ — **never sum them**. `store.reconcile` returns the concrete figures and `get_transactions` flags each lump debit as `card_repayment` (same `isCardRepayment` rule); use them, don't hand-roll. This is the standing double-count risk (vimarsha `#4` in `r149`).
   - **Never assume a fixed bank/card set**: which providers are configured differs per machine. Call the `providers` tool first; it reads `.env` presence. Ask the user only about configured providers.
-  - **Credentials**: `.env` lives at the **repo root** (git-ignored), loaded by `config.mjs` (`join(__dirname,'.env')` → `../.env` fallback). Hapoalim SMS is typed only in the browser, never stored. Never stage `.env`, `data/`, or `profiles/` — never `git add -A` blind (they're git-ignored, but treat this as a hard rule).
-  - **Commenting out a credential in `.env` does NOT disable it**: `config.loadEnv` strips a leading `# ` before parsing, so `# LEUMI_PASSWORD=…` still counts as configured and the provider still shows up in `providers`. To actually disable a provider, delete its lines or blank the values. `tools/setup-form.mjs` therefore omits unused providers entirely rather than commenting them out.
-  - **`SCRAPE_MONTHS_BACK` is read from `process.env`, not from `.env`**: `config.mjs` ends with `parseInt(process.env.SCRAPE_MONTHS_BACK || '12', 10)`, which never consults `loadEnv()`. Setting it in `.env` is silently ignored and the depth stays 12 months — it only takes effect from the `env` block of the `kesef` MCP registration in `~/.claude.json` (or a real shell env var). Anything rewriting that file must do it atomically: it is Claude Code's live global state, not a config this repo owns.
+  - **Credentials**: `.env` lives in `KESEF_HOME`, parsed only by `config.loadEnv` (a commented-out key, an empty value and an `.env.example` placeholder are all inactive). Hapoalim SMS is typed only in the browser, never stored. Never stage `.env`, `data/`, or `profiles/` — never `git add -A` blind (they're git-ignored, but treat this as a hard rule).
+  - **`KESEF_HOME` decides where state lives**: an explicit `KESEF_HOME` env var wins; else the repo root if a `.env` already sits there (dev checkout / pre-plugin install); else `~/.kesef`. Never write state under the plugin dir — Claude Code and Codex replace it on every plugin update. A plugin install and a dev checkout therefore see different data unless `.env`/`data/`/`profiles/` are moved to `~/.kesef` or `KESEF_HOME` is set.
+  - **Settings go through `setting()`**: `SCRAPE_MONTHS_BACK`, `CHROME_PATH`, `RELAY_URL` resolve process env → `.env` → default, per call. Don't read `process.env` directly for a user setting, or `.env` silently stops working for it.
+  - **The two plugin manifests differ on purpose**: Claude Code expands `${CLAUDE_PLUGIN_ROOT}` (`.claude-plugin/plugin.json`), Codex expands `${PLUGIN_ROOT}` (root `mcp.json`) and does not expand the Claude variable. Both point at `bin/kesef-mcp.mjs`. Codex keys its install cache by `version` in root `plugin.json` — bump it (with `package.json`) for a release Codex users should receive; Claude Code versions by commit SHA.
   - **Card-repayment matching is spelling-sensitive**: `CARD_REPAY_RE` in `store.mjs` matches free-text Hebrew bank descriptions, and banks spell the same issuer several ways (Leumi writes `מאסטרקרד` **with** an alef; the alef-less form also occurs). A missed spelling doesn't error — it silently drops those lump debits from `cardRepaymentsDebited`, which is exactly the figure that stops card spending being double-counted. When adding a card provider, add its spellings **and** pin them in `test/reconcile-dataset.test.mjs` with descriptions copied from a real statement, including near-misses that must NOT match (e.g. `כאלה` "such" vs. `כאל` Cal, and debit-card charges, which are not bill repayments).
-  - **MCP registration is by absolute path**: `kesef` is registered user-scope pointing at `.../bank_connector/src/server.mjs`. Moving/renaming the repo breaks it — re-run `claude mcp remove/add kesef -s user`.
+  - **A manual registration is by absolute path**: a user-scope `kesef` registration (Claude Code `claude mcp add`, Codex `config.toml`) points at `<checkout>/src/server.mjs`; moving the repo breaks it. Installing the plugin next to it runs two servers — remove the manual one.
   - **`defaultTimeout` in `libScrape` is load-bearing for Leumi (do NOT drop it)**: the library's `waitForPostLogin()` races the success selectors (60s) against an invalid-password `waitForSelector` that has NO explicit timeout, so it inherits the page's default timeout. Below ~60s that error branch rejects the race first and a **successful** login surfaces as `GENERIC Waiting for selector .../שגויים failed` — a false "invalid credentials". Keep `defaultTimeout: 120000` in the `createScraper` options (`refresh.mjs`). A prior mode-B refactor swapped it for `timeout: 0` (a different option — navigation only) and silently broke Leumi login + account extraction; the symptom is a misleading credential error even though the account is fine.
   - **The family token is a credential**: `kesef1.<householdId>.<secret>` (`token.mjs`) grants read access to a household's relay room. It lives only in `.env` (`HOUSEHOLD_TOKEN`, written by `identity.writeEnvKeys`) — never log or print it in full; when it must appear in output, redact to `kesef1.***`. Never write it to stdout on the MCP server path (see the stdio-purity gotcha above).
   - **Household reconcile is per-member, then summed**: `merge.householdReconcile` runs `store.reconcileDataset` once per member's own accounts/transactions/providers and sums the resulting figures — it never matches a card repayment on one member's bank against another member's card. Treat this the same as the single-member dedup gotcha above: don't hand-roll a cross-member match.
@@ -113,7 +119,7 @@ _(interop: full — verified against superpowers@6.1.1 — re-check on suite upg
 
 - `AGENTS.md` — commands, structure, conventions, stack, or a new gotcha changes.
 - NKS (`r149`) — every push (see _Session lifecycle_).
-- `README.md` / `START.md` — user-facing usage or setup changes (keep them human-facing, no duplication of this file).
+- `README.md` / `INSTALL.md` / `FAMILY.md` — user-facing usage or setup changes (keep them human-facing, in English, no duplication of this file).
 
 ## Git workflow
 
