@@ -30,7 +30,7 @@ export const TOOLS = [
   {
     name: 'refresh',
     description:
-      'Fetch fresh balance + transactions for a provider. Opens a REAL browser window on the user’s screen; the user completes only the human step there (see `providers` → humanStep: Hapoalim — type the SMS code, username/password are auto-filled; Isracard — pass the Cloudflare check; Leumi and Cal — usually nothing). Long-running (up to a few minutes); progress is reported while it runs. Data is stored locally.',
+      'Fetch fresh balance + transactions for a provider. Opens a REAL browser window on the user’s screen; the user completes only the human step there (see `providers` → humanStep: Hapoalim — type the SMS code, username/password are auto-filled; Isracard — pass the Cloudflare check; Leumi and Cal — usually nothing). Long-running (up to a few minutes); progress is reported while it runs. Data is stored locally. The result carries `summary` (currentBalance, pendingCardBill, availableBalance, and cardSpending / bankCredits for thisMonth and lastMonth): right after a refresh, show it to the user as a short table without being asked, then offer the finance-report skill for categories and subscriptions.',
     inputSchema: {
       type: 'object',
       properties: {

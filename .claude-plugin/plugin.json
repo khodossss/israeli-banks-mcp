@@ -8,7 +8,7 @@
   "repository": "https://github.com/khodossss/kesef.ai",
   "keywords": ["finance", "banking", "israel", "mcp"],
   "mcpServers": {
-    "kesef": {
+    "bank": {
       "command": "node",
       "args": ["${CLAUDE_PLUGIN_ROOT}/bin/kesef-mcp.mjs"]
     }

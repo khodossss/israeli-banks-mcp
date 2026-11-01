@@ -22,7 +22,7 @@ In a Claude Code session:
 Or from a terminal: `claude plugin marketplace add khodossss/kesef.ai`, then
 `claude plugin install kesef@kesef-ai`.
 
-Start a new session. The plugin brings the `kesef` MCP server and the
+Start a new session. The plugin brings the kesef MCP server (named `bank` inside the plugin) and the
 `/kesef:finance-report` skill.
 
 **Updates:** third-party marketplaces don't auto-update by default. Run
@@ -36,7 +36,7 @@ codex plugin marketplace add khodossss/kesef.ai
 codex plugin add kesef@kesef-ai
 ```
 
-Start a new session. The plugin brings the `kesef` MCP server and the `finance-report`
+Start a new session. The plugin brings the kesef MCP server (named `bank`) and the `finance-report`
 skill (invoke it with `$finance-report`, or just ask for a finance report).
 
 **Updates:** `codex plugin marketplace upgrade kesef-ai`.

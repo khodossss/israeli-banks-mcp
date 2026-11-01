@@ -103,7 +103,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
           provider,
           ...saved,
           familySynced,
-          note: 'stored locally; query with get_transactions / list_accounts',
+          summary: store.refreshSummary(),
+          note: 'Show `summary` to the user now as a short table, then offer the finance-report skill for the full breakdown.',
         });
       }
       case 'list_accounts':
