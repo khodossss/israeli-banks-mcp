@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mergeSnapshots, householdReconcile, householdAccounts } from '../src/household/merge.mjs';
+import { mergeSnapshots, householdReconcile, householdAccounts, householdSummary } from '../src/household/merge.mjs';
 
 const NOW = '2026-07-01T00:00:00Z';
 
@@ -41,4 +41,24 @@ test('same bank across members does not collide; household sums per-member', () 
   assert.equal(r.household.currentBalance, 1200); // 1000 + 200
   assert.equal(r.household.pendingCardBill, -50); // only Dima has a future card debit
   assert.equal(r.household.availableBalance, 1150);
+});
+
+test('householdSummary gives a row per member and the family total', () => {
+  const june15 = { provider: 'isracard', charged_amount: -30, date: '2026-06-14T21:00:00.000Z' }; // 15 Jun, Israel
+  const s = householdSummary([{ ...dima, transactions: [...dima.transactions, june15] }, wife], { now: NOW });
+  assert.deepEqual(s.lastMonth, { from: '2026-06-01', to: '2026-06-30' });
+  assert.deepEqual(
+    s.members.map(m => [m.member, m.availableBalance, m.cardSpendingLastMonth]),
+    [
+      ['Spouse', 200, 0],
+      ['Dima', 950, -30],
+    ],
+  );
+  assert.deepEqual(s.household, {
+    currentBalance: 1200,
+    pendingCardBill: -50,
+    availableBalance: 1150,
+    cardSpendingThisMonth: 0,
+    cardSpendingLastMonth: -30,
+  });
 });

@@ -5,7 +5,13 @@ import { exportSnapshot } from '../store.mjs';
 import { parseToken, newHouseholdId, newSecret, formatToken } from './token.mjs';
 import { deriveKey, deriveVerifier, seal, open } from './crypto.mjs';
 import { makeStore, createRoom } from './stores.mjs';
-import { mergeSnapshots, householdAccounts, householdTransactions, householdReconcile } from './merge.mjs';
+import {
+  mergeSnapshots,
+  householdAccounts,
+  householdTransactions,
+  householdReconcile,
+  householdSummary,
+} from './merge.mjs';
 import { loadHousehold, writeEnvKeys, newMemberId, displayName } from './identity.mjs';
 import { setting, DEFAULT_RELAY_URL } from '../../config.mjs';
 
@@ -169,4 +175,9 @@ export async function householdTxns(filters = {}) {
   const cfg = requireHousehold();
   const snaps = await pullSnapshotsWith(cfg, snapshotThunk(cfg));
   return householdTransactions(snaps, filters);
+}
+
+export async function familySummary() {
+  const cfg = requireHousehold();
+  return householdSummary(await pullSnapshotsWith(cfg, snapshotThunk(cfg)));
 }

@@ -18,6 +18,7 @@ import {
   familyLeave,
   familyStatus,
   familySync,
+  familySummary,
   householdView,
   householdTxns,
 } from './household/index.mjs';
@@ -90,10 +91,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
         const result = await refresh(provider, { monthsBack: args.monthsBack, onProgress });
         const saved = store.save(result, new Date().toISOString());
         let familySynced = false;
+        let household = null;
         try {
           if (loadHousehold()) {
             await familySync();
             familySynced = true;
+            household = await familySummary();
           }
         } catch (e) {
           console.error(`[refresh:${provider}] family sync skipped: ${e.message}`);
@@ -104,7 +107,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
           ...saved,
           familySynced,
           summary: store.refreshSummary(),
-          note: 'Show `summary` to the user now as a short table, then offer the finance-report skill for the full breakdown.',
+          ...(household && { household }),
+          note: household
+            ? 'Show `summary` (your accounts) and `household` (a row per member plus the family total) to the user now as short tables; flag any member whose lastRefresh is over a week old. Then offer the finance-report skill for the full breakdown.'
+            : 'Show `summary` to the user now as a short table, then offer the finance-report skill for the full breakdown.',
         });
       }
       case 'list_accounts':

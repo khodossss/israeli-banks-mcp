@@ -5,7 +5,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { DATA_DIR, BANK_PROVIDERS, CARD_PROVIDERS } from '../config.mjs';
-import { dayRange, inRange, israelToday } from './dates.mjs';
+import { dayRange, inRange, monthRanges } from './dates.mjs';
 
 const db = new DatabaseSync(join(DATA_DIR, 'bank.db'));
 
@@ -228,13 +228,8 @@ export function reconcile({ from, to } = {}) {
 // card spending / bank credits for this month so far and the previous full
 // month (early in a month the current one is still empty) — reconcile's rules.
 export function refreshSummary(now = new Date()) {
-  const today = israelToday(now);
-  const thisMonth = `${today.slice(0, 7)}-01`;
-  const prev = new Date(`${thisMonth}T00:00:00Z`);
-  prev.setUTCMonth(prev.getUTCMonth() - 1);
-  const lastMonth = prev.toISOString().slice(0, 10);
-  const lastDay = new Date(new Date(`${thisMonth}T00:00:00Z`) - 864e5).toISOString().slice(0, 10);
-  const period = (from, to) => {
+  const { thisMonth, lastMonth } = monthRanges(now);
+  const period = ({ from, to }) => {
     const { ledger } = reconcile({ from, to });
     const credits = getTransactions({ from, to, limit: 1000000 })
       .filter(t => BANK_PROVIDERS.includes(t.provider) && t.charged_amount > 0)
@@ -252,8 +247,8 @@ export function refreshSummary(now = new Date()) {
     currentBalance: r.currentBalance,
     pendingCardBill: r.pendingCardBill,
     availableBalance: r.availableBalance,
-    thisMonth: period(thisMonth, today),
-    lastMonth: period(lastMonth, lastDay),
+    thisMonth: period(thisMonth),
+    lastMonth: period(lastMonth),
   };
 }
 

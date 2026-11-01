@@ -2,7 +2,8 @@
 // (card repayments match bank↔card only inside one member) and the household
 // figures are the sum — never a cross-member match.
 import { reconcileDataset } from '../store.mjs';
-import { dayRange, inRange } from '../dates.mjs';
+import { dayRange, inRange, monthRanges } from '../dates.mjs';
+import { displayName } from './identity.mjs';
 
 const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -63,6 +64,37 @@ export function householdReconcile(snapshots, { from, to, now } = {}) {
       pendingCardBill: sum('pendingCardBill'),
       availableBalance: sum('availableBalance'),
       pendingCount: perMember.reduce((s, m) => s + (m.pendingCount || 0), 0),
+    },
+  };
+}
+
+// Shown right after a refresh in family mode: per member, the balance picture,
+// card spending this month and last, and when they last refreshed; plus the
+// household totals. Same per-member rule as householdReconcile.
+export function householdSummary(snapshots, { now } = {}) {
+  const { thisMonth, lastMonth } = monthRanges(now ? new Date(now) : new Date());
+  const cur = householdReconcile(snapshots, { ...thisMonth, now });
+  const prev = householdReconcile(snapshots, { ...lastMonth, now });
+  const members = cur.perMember.map((m, i) => ({
+    member: displayName(m.member, i),
+    lastRefresh: m.last_refresh,
+    currentBalance: m.currentBalance,
+    pendingCardBill: m.pendingCardBill,
+    availableBalance: m.availableBalance,
+    cardSpendingThisMonth: m.ledger.cardConsumption,
+    cardSpendingLastMonth: prev.perMember[i].ledger.cardConsumption,
+  }));
+  const sum = key => r2(members.reduce((s, m) => s + m[key], 0));
+  return {
+    thisMonth,
+    lastMonth,
+    members,
+    household: {
+      currentBalance: sum('currentBalance'),
+      pendingCardBill: sum('pendingCardBill'),
+      availableBalance: sum('availableBalance'),
+      cardSpendingThisMonth: sum('cardSpendingThisMonth'),
+      cardSpendingLastMonth: sum('cardSpendingLastMonth'),
     },
   };
 }

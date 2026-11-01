@@ -47,3 +47,16 @@ export function inRange(date, { lo, hi }) {
 export function israelToday(now = new Date()) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(now);
 }
+
+// This month so far and the previous full month, as Israeli calendar days.
+export function monthRanges(now = new Date()) {
+  const today = israelToday(now);
+  const thisFrom = `${today.slice(0, 7)}-01`;
+  const start = new Date(`${thisFrom}T00:00:00Z`);
+  const lastTo = new Date(start - 864e5).toISOString().slice(0, 10);
+  start.setUTCMonth(start.getUTCMonth() - 1);
+  return {
+    thisMonth: { from: thisFrom, to: today },
+    lastMonth: { from: start.toISOString().slice(0, 10), to: lastTo },
+  };
+}
